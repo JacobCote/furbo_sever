@@ -38,6 +38,15 @@ def add_to_buffer(image):
             server.BUFFER.pop(0)  # Supprime l'image la plus ancienne si le buffer est plein
 
 
+
+@app.route('/',methods=['GET'])
+def test():
+    
+        return jsonify({"bundles": "test"}), 200
+       
+        
+
+
 @app.route('/api/getdata',methods=['GET'])
 def getData():
     data = request.get_json()

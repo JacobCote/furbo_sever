@@ -11,7 +11,7 @@ import json
 from utils import Arduino
 
 VIDEO_FEED = deque()
-PINGLIFE_URL = "http://127.0.0.1:5000/api/pingLife"
+
 
 
 def fetchCommand(api_key,url):
@@ -29,26 +29,43 @@ def fetchCommand(api_key,url):
     
 
 def sendToServer(api_key,images,url):
-   
-
     data = {
          "api_key" : api_key,
 
     }
+    up = pingLife(api_key,url)
+    myTime = time.time()
+    while True:
+        if time.time() - myTime > 2 :
+            if time.time() - myTime > 8:
+                up = pingLife(api_key,url)
+            myTime = time.time()
+            
+        
+            if up : 
+            
 
-    files = {f'image_{i}': (f'image_{i}.jpg', io.BytesIO(images[i]), 'image/jpeg') for i in range(len(images))}
     
-    response = requests.post(
-        url=url,
-        files=files,
-        data=data
-    )
+
+                files = {f'image_{i}': (f'image_{i}.jpg', io.BytesIO(images[i]), 'image/jpeg') for i in range(len(images))}
+    
+    
+
+                requests.post(
+                url=url+"/sendData",
+                files=files,
+                data=data,
+                )
+                images.clear()
+            
+    
+    
     
     
 def captureImage(image):
     buffer = io.BytesIO()
     img = PIL.Image.fromarray(image)
-    img.save(buffer,"JPEG",quality=70)
+    img.save(buffer,"JPEG",quality=10)
     buffer.seek(0)
     return buffer.getvalue()
 
@@ -61,16 +78,21 @@ def pingLife(api_key,url):
     return r.status_code == 200
     
 
+
+
+
     
-def camera(api_key,url,commands):
+def camera(api_key,url,commands,video_feed):
     global RECORD
     RECORD = True
     
     # Open the default camera
-    try :
-        cam = cv2.VideoCapture(1)
-    except :
-        cam = cv2.VideoCapture(0)
+    
+
+    cam = cv2.VideoCapture(0)
+        
+
+        
         
 
     # Get the default frame width and height
@@ -86,7 +108,6 @@ def camera(api_key,url,commands):
     n_image = 0 
     lastPing = time.time()
     up = pingLife(api_key,url)
-    buffer_images = []
     last_time = time.time()
     arduino = Arduino(url=url,api_key=api_key)
     arduino.initLocal()
@@ -95,7 +116,7 @@ def camera(api_key,url,commands):
     
     while RECORD:
         mytime = time.time()
-        if  mytime - lastPing > 2 :
+        if  mytime - lastPing > 8 :
             up = pingLife(api_key,url)
             if up and not was_up: 
                 print(up,was_up)
@@ -114,18 +135,20 @@ def camera(api_key,url,commands):
         
         
         
-        if mytime - last_time > 0.035 :
+        if mytime - last_time > 0.10 :
+            #print( mytime - last_time)
             
             last_time = time.time()
+           
             ret, frame = cam.read()
             frame = np.array(frame,dtype=np.uint8)
         
             jpeg = captureImage(frame)
-            buffer_images.append(jpeg)
-            n_image +=1
-        
+            video_feed.append(jpeg)
+            #n_image +=1
+        """
 
-            if n_image == 5  :
+            if n_image == 10:
                 
                 n_image = 0
                 if up :
@@ -136,14 +159,15 @@ def camera(api_key,url,commands):
                         commands += command
                         arduino.manageCommand(commands)
                         commands = ""
+                        
                 
-                    sendToServer(images=buffer_images,url=url+"/sendData",api_key=api_key)
+                    #sendToServer(images=buffer_images,url=url+"/sendData",api_key=api_key)
                     pass
                 else :
                     arduino.IsConnected = False
                     arduino.port = ""
+                     """
                     
-                buffer_images = []
                 
 
     
@@ -152,21 +176,29 @@ def camera(api_key,url,commands):
 if __name__ == "__main__":
     ACTIVE = True
     url = 'http://127.0.0.1:5000/api'
+    url = "https://jacobcote.pythonanywhere.com/api"
     with open('API_KEY.json') as f:
         d = json.load(f)
         api_key = d['APIKEY']
    
-        
+        def test(): 
+            while True :
+                time.sleep(2)
+                print("OK")
     
     commands= ''
+    
+    VIDEO_FEED = deque()
 
     # Data to be sent in the request body
     #t1 = Thread(target=lambda : manageArduino(ACTIVE,commands,url=url+"/postPorts",api_key=api_key))
     #t1.start()
-    #t2 = Thread(target=lambda: camera(api_key,url+"/sendData",commands=commands))
-    #t2.start()
+    t2 = Thread(target=lambda: camera(api_key,url,commands=commands,video_feed=VIDEO_FEED))
+    t2.start()
+    t1 = Thread(target=lambda : sendToServer(api_key=api_key,images=VIDEO_FEED,url= url))
+    t1.start()
     
-    camera(api_key,url,commands=commands)
+    #camera(api_key,url,commands=commands)
     
     
     

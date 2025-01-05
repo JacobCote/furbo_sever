@@ -3,7 +3,7 @@ import requests
 import time
 import io
 from pynput import keyboard
-from utils import keyManager1, sendLife,getPorts
+from utils import keyManager1, sendLife
 import json
 from threading import Thread
 from collections import deque
@@ -12,6 +12,7 @@ import cv2
 import numpy as np
 import base64
 from utils import Arduino
+from threading import Thread
 
 
 
@@ -27,15 +28,19 @@ def videoFeed(url,api_key,video_feed):
     
     
     while True:
+        
+        if len(video_feed) < 3 :
+            print("SLEEPING FOR BUFFER")
+            while len(video_feed) < 10 :
+                print(len(video_feed))
+                
+                time.sleep(0.01)
+            
         my_time = time.time()
-        if my_time - last_time_get > 0.10  :
-           
-            last_time_get = time.time()
-            #getData(url,api_key,VIDEO_FEED)
-            #print(len(VIDEO_FEED))
            
             
-        if my_time - last_time > 0.035  :
+        if my_time - last_time > 0.10  :
+            print("buffer size = ", len(video_feed) )
             #print(my_time - last_time)
             
             last_time = time.time()
@@ -67,7 +72,7 @@ def getData(url,api_key,video_feed):
     }
     last_time = 0
     while True:
-        if time.time() - last_time > 0.1:
+        if time.time() - last_time > 1:
             last_time = time.time()
             response = requests.get(
                 url=url,
@@ -150,6 +155,7 @@ if __name__ == '__main__' :
     
     # URL to send the POST request to
     url = "http://127.0.0.1:5000/api"
+    url = "https://jacobcote.pythonanywhere.com/api"
     
     
 
@@ -166,8 +172,6 @@ if __name__ == '__main__' :
         print("CONNECTION FAILED")
         print("code : ",response.status_code)  # Prints the status code of the response
     
-    arduino = Arduino(url=url,api_key=API_KEY)
-    arduino.initDistance()
     
     
     global QUIT
@@ -178,22 +182,34 @@ if __name__ == '__main__' :
     #print(ports)
    
     response = requests.post(url+"/life",json=data)
+    t3 = Thread(target=lambda: getData(url+"/getdata",API_KEY,video_feed=VIDEO_FEED))
     t1 = Thread(target=lambda : manageInput(url+"/resource",API_KEY))
     t2 = Thread(target=lambda: sendLife(url+"/life",API_KEY))
-    t3 = Thread(target=lambda: getData(url+"/getdata",API_KEY,video_feed=VIDEO_FEED))
-    
-    t1.start()
-    
     t2.start()
-    
     t3.start()
     
+    arduino = Arduino(url=url,api_key=API_KEY)
+    arduino.initDistance()
     
     
     
+
+    
+     
+    t1.start()
+    
+    
+    
+   
+    
+    
+    
+    
+    while len(VIDEO_FEED) < 15 : 
+        time.sleep(0.2)
     
     ## setup cam 
-    videoFeed("http://127.0.0.1:5000/api/getdata",API_KEY,VIDEO_FEED)
+    videoFeed(url+"/getdata",API_KEY,VIDEO_FEED)
     
 
 
